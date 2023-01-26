@@ -62,6 +62,10 @@ required-features = [ "bevy_text", "bevy/bevy_winit" ]
 name = "sequence"
 required-features = [ "bevy/bevy_winit" ]
 
+[[example]]
+name = "user_input"
+required-features = [ "bevy/bevy_winit" ]
+
 [workspace]
 resolver = "2"
 members = [".", "benchmarks/"]
