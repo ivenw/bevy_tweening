@@ -1160,6 +1160,24 @@ impl<T> Tweenable<T> for Delay<T> {
     }
 }
 
+/// A dummy tweenable that does nothing.
+///
+/// This is useful for adding an Animator<T> component
+pub struct Dummy<T: Component> {
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<T: Component> Dummy<T> {
+    /// Creates a dummy tweenable that does nothing.
+    ///
+    /// *Technically it returns a Delay<T> with a duration of 1ns
+    // #[allow(warnings)]
+    #[must_use]
+    pub fn new() -> Delay<T> {
+        Delay::<T>::new(Duration::from_nanos(1))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{

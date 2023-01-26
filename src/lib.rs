@@ -165,8 +165,8 @@ pub use lens::Lens;
 pub use plugin::asset_animator_system;
 pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
 pub use tweenable::{
-    BoxedTweenable, Delay, Sequence, Targetable, TotalDuration, Tracks, Tween, TweenCompleted,
-    TweenState, Tweenable,
+    BoxedTweenable, Delay, Dummy, Sequence, Targetable, TotalDuration, Tracks, Tween,
+    TweenCompleted, TweenState, Tweenable,
 };
 
 pub mod lens;
@@ -412,6 +412,14 @@ macro_rules! animator_impl {
         pub fn stop(&mut self) {
             self.state = AnimatorState::Paused;
             self.tweenable_mut().rewind();
+        }
+
+        /// Has the animation finished?
+        ///
+        /// This is a convenient function for checking if the progress of the tweenable is equal to 1.
+        #[must_use]
+        pub fn is_completed(&self) -> bool {
+            self.tweenable().progress() == 1.0
         }
     };
 }
