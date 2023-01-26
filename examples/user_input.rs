@@ -112,7 +112,7 @@ fn apply_gravity(time: Res<Time>, mut query: Query<(&mut Physics, &mut MovementS
     if *movement_state == MovementState::Jumping || *movement_state == MovementState::Falling {
         physics.velocity.y -= 1_500.0 * time.delta_seconds();
     }
-    if physics.velocity.y < 0.0 {
+    if physics.velocity.y < 0.0 && *movement_state != MovementState::Falling {
         *movement_state = MovementState::Falling;
     }
 }
@@ -140,7 +140,6 @@ fn move_player(
 }
 
 // This is the actual demonstation of the tweening plugin
-// Doesn't quite work yet how it should
 fn tween_jump_and_fall(
     options: Res<Options>,
     mut query: Query<(&mut Animator<Transform>, &MovementState), Changed<MovementState>>,
@@ -150,48 +149,52 @@ fn tween_jump_and_fall(
     }
     let (mut animator, movement_state) = query.single_mut();
 
-    // if !animator.is_completed() {
-    //     return;
-    // }
+    let rest_scale = Vec3::new(1.0, 1.0, 0.0);
+    let jump_scale = Vec3::new(0.8, 2.0, 0.0);
+    let fall_scale = Vec3::new(0.9, 1.8, 0.0);
+    let hit_ground_scale = Vec3::new(1.5, 0.8, 0.0);
 
-    if *movement_state == MovementState::Jumping {
-        let tween = Tween::new(
-            EaseFunction::CubicInOut,
-            Duration::from_millis(options.duration),
-            TransformScaleLens {
-                start: Vec3::new(1.0, 1.0, 0.0),
-                end: Vec3::new(0.8, 2.0, 0.0),
-            },
-        );
-        animator.set_tweenable(tween);
-
-    // } else if *movement_state == MovementState::Falling {
-    //     let tween = Tween::new(
-    //         EaseFunction::CubicInOut,
-    //         Duration::from_millis(100),
-    //         TransformScaleLens {
-    //             start: Vec3::new(1.0, 2.0, 0.0),
-    //             end: Vec3::new(1.0, 1.0, 0.0),
-    //         },
-    //     );
-    //     animator.set_tweenable(tween);
-    } else if *movement_state == MovementState::Idle {
-        let tween = Tween::new(
-            EaseFunction::BackOut,
-            Duration::from_millis(options.duration),
-            TransformScaleLens {
-                start: Vec3::new(1.0, 1.0, 0.0),
-                end: Vec3::new(1.5, 0.8, 0.0),
-            },
-        )
-        .then(Tween::new(
-            EaseFunction::BackOut,
-            Duration::from_millis(options.duration),
-            TransformScaleLens {
-                start: Vec3::new(1.5, 0.8, 0.0),
-                end: Vec3::new(1.0, 1.0, 0.0),
-            },
-        ));
-        animator.set_tweenable(tween);
+    match *movement_state {
+        MovementState::Jumping => {
+            let tween = Tween::new(
+                EaseFunction::CubicInOut,
+                Duration::from_millis(options.duration),
+                TransformScaleLens {
+                    start: rest_scale,
+                    end: jump_scale,
+                },
+            );
+            animator.set_tweenable(tween);
+        }
+        MovementState::Falling => {
+            let tween = Tween::new(
+                EaseFunction::CubicInOut,
+                Duration::from_millis(500),
+                TransformScaleLens {
+                    start: jump_scale,
+                    end: fall_scale,
+                },
+            );
+            animator.set_tweenable(tween);
+        }
+        MovementState::Idle => {
+            let tween = Tween::new(
+                EaseFunction::BackOut,
+                Duration::from_millis(options.duration),
+                TransformScaleLens {
+                    start: fall_scale,
+                    end: hit_ground_scale,
+                },
+            )
+            .then(Tween::new(
+                EaseFunction::BackOut,
+                Duration::from_millis(options.duration),
+                TransformScaleLens {
+                    start: hit_ground_scale,
+                    end: rest_scale,
+                },
+            ));
+            animator.set_tweenable(tween);
+        }
     }
 }
