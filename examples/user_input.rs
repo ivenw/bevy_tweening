@@ -1,9 +1,11 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
+use bevy_inspector_egui::prelude::*;
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
+use interpolation::Ease;
 
 #[derive(Component)]
 struct Player;
@@ -21,14 +23,62 @@ struct Physics {
 }
 
 // TODO adopt this for setting the tween parameters of the jump and fall
-#[derive(Copy, Clone, PartialEq, Inspectable, Resource)]
+#[derive(Inspectable, Resource)]
 struct Options {
-    duration: u64,
+    jump_duration: u64,
+    fall_duration: u64,
+    landing_duration: u64,
+    jump_ease: String,
+    fall_ease: String,
+    landing_ease: String,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { duration: 100 }
+        Self {
+            jump_duration: 300,
+            fall_duration: 500,
+            landing_duration: 100,
+            jump_ease: "BackOut".to_string(),
+            fall_ease: "CubicIn".to_string(),
+            landing_ease: "CubicOut".to_string(),
+        }
+    }
+}
+
+fn string_to_ease_function(string: &String) -> EaseFunction {
+    match string.as_str() {
+        "QuadraticIn" => EaseFunction::QuadraticIn,
+        "QuadraticOut" => EaseFunction::QuadraticOut,
+        "QuadraticInOut" => EaseFunction::QuadraticInOut,
+        "CubicIn" => EaseFunction::CubicIn,
+        "CubicOut" => EaseFunction::CubicOut,
+        "CubicInOut" => EaseFunction::CubicInOut,
+        "QuarticIn" => EaseFunction::QuarticIn,
+        "QuarticOut" => EaseFunction::QuarticOut,
+        "QuarticInOut" => EaseFunction::QuarticInOut,
+        "QuinticIn" => EaseFunction::QuinticIn,
+        "QuinticOut" => EaseFunction::QuinticOut,
+        "QuinticInOut" => EaseFunction::QuinticInOut,
+        "SineIn" => EaseFunction::SineIn,
+        "SineOut" => EaseFunction::SineOut,
+        "SineInOut" => EaseFunction::SineInOut,
+        "CircularIn" => EaseFunction::CircularIn,
+        "CircularOut" => EaseFunction::CircularOut,
+        "CircularInOut" => EaseFunction::CircularInOut,
+        "ExponentialIn" => EaseFunction::ExponentialIn,
+        "ExponentialOut" => EaseFunction::ExponentialOut,
+        "ExponentialInOut" => EaseFunction::ExponentialInOut,
+        "ElasticIn" => EaseFunction::ElasticIn,
+        "ElasticOut" => EaseFunction::ElasticOut,
+        "ElasticInOut" => EaseFunction::ElasticInOut,
+        "BackIn" => EaseFunction::BackIn,
+        "BackOut" => EaseFunction::BackOut,
+        "BackInOut" => EaseFunction::BackInOut,
+        "BounceIn" => EaseFunction::BounceIn,
+        "BounceOut" => EaseFunction::BounceOut,
+        "BounceInOut" => EaseFunction::BounceInOut,
+        _ => EaseFunction::CubicInOut,
     }
 }
 
@@ -39,7 +89,7 @@ fn main() {
                 title: "User Input".to_string(),
                 width: 1400.,
                 height: 600.,
-                scale_factor_override: Some(0.3), // only here for sneaky testing
+                // scale_factor_override: Some(0.3), // only here for sneaky testing
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
             },
@@ -142,23 +192,26 @@ fn move_player(
 // This is the actual demonstation of the tweening plugin
 fn tween_jump_and_fall(
     options: Res<Options>,
-    mut query: Query<(&mut Animator<Transform>, &MovementState), Changed<MovementState>>,
+    mut query: Query<
+        (&mut Animator<Transform>, &MovementState, &Transform),
+        Changed<MovementState>,
+    >,
 ) {
     if query.is_empty() {
         return;
     }
-    let (mut animator, movement_state) = query.single_mut();
+    let (mut animator, movement_state, transform) = query.single_mut();
 
     let rest_scale = Vec3::new(1.0, 1.0, 0.0);
-    let jump_scale = Vec3::new(0.8, 2.0, 0.0);
-    let fall_scale = Vec3::new(0.9, 1.8, 0.0);
-    let hit_ground_scale = Vec3::new(1.5, 0.8, 0.0);
+    let jump_scale = Vec3::new(0.9, 1.1, 0.0);
+    let fall_scale = Vec3::new(0.7, 1.3, 0.0);
+    let landing_scale = Vec3::new(1.2, 0.8, 0.0);
 
     match *movement_state {
         MovementState::Jumping => {
             let tween = Tween::new(
-                EaseFunction::CubicInOut,
-                Duration::from_millis(options.duration),
+                string_to_ease_function(&options.jump_ease),
+                Duration::from_millis(options.jump_duration),
                 TransformScaleLens {
                     start: rest_scale,
                     end: jump_scale,
@@ -168,8 +221,8 @@ fn tween_jump_and_fall(
         }
         MovementState::Falling => {
             let tween = Tween::new(
-                EaseFunction::CubicInOut,
-                Duration::from_millis(500),
+                string_to_ease_function(&options.fall_ease),
+                Duration::from_millis(options.fall_duration),
                 TransformScaleLens {
                     start: jump_scale,
                     end: fall_scale,
@@ -179,18 +232,18 @@ fn tween_jump_and_fall(
         }
         MovementState::Idle => {
             let tween = Tween::new(
-                EaseFunction::BackOut,
-                Duration::from_millis(options.duration),
+                string_to_ease_function(&options.landing_ease),
+                Duration::from_millis(options.landing_duration),
                 TransformScaleLens {
                     start: fall_scale,
-                    end: hit_ground_scale,
+                    end: landing_scale,
                 },
             )
             .then(Tween::new(
-                EaseFunction::BackOut,
-                Duration::from_millis(options.duration),
+                string_to_ease_function(&options.landing_ease),
+                Duration::from_millis(options.landing_duration),
                 TransformScaleLens {
-                    start: hit_ground_scale,
+                    start: landing_scale,
                     end: rest_scale,
                 },
             ));
