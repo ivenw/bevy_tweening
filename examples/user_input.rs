@@ -1,6 +1,12 @@
-use bevy::prelude::*;
+use std::time::Duration;
 
-use bevy_tweening::*;
+use bevy::prelude::*;
+use bevy_inspector_egui::{Inspectable, InspectorPlugin};
+
+use bevy_tweening::{lens::*, *};
+
+#[derive(Component)]
+struct Player;
 
 #[derive(Component, PartialEq, Eq)]
 enum MovementState {
@@ -12,6 +18,18 @@ enum MovementState {
 #[derive(Component)]
 struct Physics {
     velocity: Vec2,
+}
+
+// TODO adopt this for setting the tween parameters of the jump and fall
+#[derive(Copy, Clone, PartialEq, Inspectable, Resource)]
+struct Options {
+    duration: u64,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self { duration: 100 }
+    }
 }
 
 fn main() {
@@ -29,10 +47,12 @@ fn main() {
         }))
         .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
+        .add_plugin(InspectorPlugin::<Options>::new())
         .add_startup_system(setup)
         .add_system(take_input)
         .add_system(apply_gravity)
         .add_system(move_player)
+        .add_system(tween_jump_and_fall)
         .run();
 }
 
@@ -62,10 +82,12 @@ fn setup(mut commands: Commands, windows: Res<Windows>) {
         Physics {
             velocity: Vec2::new(0.0, 0.0),
         },
+        Player,
     ));
 }
 
 // This is just a simple character controller for demonstration purposes.
+// works but should protably be refactored a bit
 fn take_input(
     keys: Res<Input<KeyCode>>,
     time: Res<Time>,
@@ -114,5 +136,62 @@ fn move_player(
         *movement_state = MovementState::Idle;
     } else {
         transform.translation += translation_change.extend(0.0);
+    }
+}
+
+// This is the actual demonstation of the tweening plugin
+// Doesn't quite work yet how it should
+fn tween_jump_and_fall(
+    options: Res<Options>,
+    mut query: Query<(&mut Animator<Transform>, &MovementState), Changed<MovementState>>,
+) {
+    if query.is_empty() {
+        return;
+    }
+    let (mut animator, movement_state) = query.single_mut();
+
+    // if !animator.is_completed() {
+    //     return;
+    // }
+
+    if *movement_state == MovementState::Jumping {
+        let tween = Tween::new(
+            EaseFunction::CubicInOut,
+            Duration::from_millis(options.duration),
+            TransformScaleLens {
+                start: Vec3::new(1.0, 1.0, 0.0),
+                end: Vec3::new(0.8, 2.0, 0.0),
+            },
+        );
+        animator.set_tweenable(tween);
+
+    // } else if *movement_state == MovementState::Falling {
+    //     let tween = Tween::new(
+    //         EaseFunction::CubicInOut,
+    //         Duration::from_millis(100),
+    //         TransformScaleLens {
+    //             start: Vec3::new(1.0, 2.0, 0.0),
+    //             end: Vec3::new(1.0, 1.0, 0.0),
+    //         },
+    //     );
+    //     animator.set_tweenable(tween);
+    } else if *movement_state == MovementState::Idle {
+        let tween = Tween::new(
+            EaseFunction::BackOut,
+            Duration::from_millis(options.duration),
+            TransformScaleLens {
+                start: Vec3::new(1.0, 1.0, 0.0),
+                end: Vec3::new(1.5, 0.8, 0.0),
+            },
+        )
+        .then(Tween::new(
+            EaseFunction::BackOut,
+            Duration::from_millis(options.duration),
+            TransformScaleLens {
+                start: Vec3::new(1.5, 0.8, 0.0),
+                end: Vec3::new(1.0, 1.0, 0.0),
+            },
+        ));
+        animator.set_tweenable(tween);
     }
 }
