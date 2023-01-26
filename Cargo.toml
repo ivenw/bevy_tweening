@@ -63,7 +63,7 @@ name = "sequence"
 required-features = [ "bevy/bevy_winit" ]
 
 [[example]]
-name = "user_input"
+name = "squash_stretch_jump"
 required-features = [ "bevy/bevy_winit" ]
 
 [workspace]

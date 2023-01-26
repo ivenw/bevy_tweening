@@ -5,7 +5,6 @@ use bevy_inspector_egui::prelude::*;
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
-use interpolation::Ease;
 
 #[derive(Component)]
 struct Player;
