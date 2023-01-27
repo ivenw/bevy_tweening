@@ -5,6 +5,11 @@ use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
 
+const PIXELS_PER_METER: f32 = 100.0;
+const JUMP_VELOCITY: f32 = 11.0 * PIXELS_PER_METER;
+const GRAVITY: f32 = 15.0 * PIXELS_PER_METER;
+const PLAYER_SIZE: Vec2 = Vec2::new(1.0 * PIXELS_PER_METER, 1.0 * PIXELS_PER_METER);
+
 #[derive(Component)]
 struct Player;
 
@@ -18,7 +23,6 @@ enum MovementState {
 #[derive(Component)]
 struct Velocity(Vec2);
 
-// TODO adopt this for setting the tween parameters of the jump and fall
 #[derive(Inspectable, Resource)]
 struct Options {
     jump_duration: u64,
@@ -79,34 +83,34 @@ fn string_to_ease_function(string: &String) -> EaseFunction {
 }
 
 fn main() {
+    let window = WindowDescriptor {
+        title: "User Input".to_string(),
+        width: 1400.,
+        height: 600.,
+        present_mode: bevy::window::PresentMode::Fifo, // vsync
+        resizable: false,
+        ..default()
+    };
+
     App::default()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
-                title: "User Input".to_string(),
-                width: 1400.,
-                height: 600.,
-                // scale_factor_override: Some(0.3), // only here for sneaky testing
-                present_mode: bevy::window::PresentMode::Fifo, // vsync
-                ..default()
-            },
+            window,
             ..default()
         }))
         .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_plugin(InspectorPlugin::<Options>::new())
         .add_startup_system(setup)
-        .add_system(take_input)
+        .add_system(change_movement_state)
         .add_system(apply_gravity)
-        .add_system(move_player)
-        .add_system(tween_jump_and_fall)
+        .add_system(apply_velocity)
+        .add_system(tween_player)
         .run();
 }
 
 fn setup(mut commands: Commands, windows: Res<Windows>, asset_server: Res<AssetServer>) {
     let window = windows.get_primary().unwrap();
     let bottom = window.height() / -2.0;
-
-    let player_size = Vec2::new(100.0, 100.0);
 
     commands.spawn(Camera2dBundle::default());
 
@@ -130,11 +134,11 @@ fn setup(mut commands: Commands, windows: Res<Windows>, asset_server: Res<AssetS
         SpriteBundle {
             sprite: Sprite {
                 color: Color::WHITE,
-                custom_size: Some(player_size),
+                custom_size: Some(PLAYER_SIZE),
                 ..Default::default()
             },
             transform: Transform {
-                translation: Vec3::new(0.0, bottom + (player_size.y / 2.0), 0.0),
+                translation: Vec3::new(0.0, bottom + (PLAYER_SIZE.y / 2.0), 0.0),
                 ..Default::default()
             },
             ..Default::default()
@@ -146,20 +150,22 @@ fn setup(mut commands: Commands, windows: Res<Windows>, asset_server: Res<AssetS
     ));
 }
 
-// This is just a simple character controller for demonstration purposes.
-// works but should protably be refactored a bit
-fn take_input(
+fn change_movement_state(
     keys: Res<Input<KeyCode>>,
-    time: Res<Time>,
-    mut query: Query<(&mut MovementState, &mut Velocity)>,
+    windows: Res<Windows>,
+    mut query: Query<(&mut MovementState, &mut Velocity, &Transform), With<Player>>,
 ) {
-    let (mut movement_state, mut velocity) = query.single_mut();
+    let window = windows.get_primary().unwrap();
+    let (mut movement_state, mut velocity, transform) = query.single_mut();
+
+    let bottom = window.height() / -2.0;
+    let ground = bottom + (PLAYER_SIZE.y / 2.0);
 
     match *movement_state {
         MovementState::Idle => {
             if keys.just_pressed(KeyCode::Space) {
+                velocity.0.y = JUMP_VELOCITY;
                 *movement_state = MovementState::Jumping;
-                velocity.0.y = 1_000.0;
             }
         }
         MovementState::Jumping => {
@@ -167,51 +173,45 @@ fn take_input(
                 *movement_state = MovementState::Falling;
             }
         }
-        MOvementState::Falling => {
-            if transform.translation.y + translation_change.y < ground_relative_to_player {
-                transform.translation.y = ground_relative_to_player;
+        MovementState::Falling => {
+            if transform.translation.y <= ground {
                 velocity.0.y = 0.0;
                 *movement_state = MovementState::Idle;
+            }
         }
     }
 }
 
-fn apply_gravity(time: Res<Time>, mut query: Query<(&mut Velocity, &mut MovementState)>) {
-    let (mut velocity, mut movement_state) = query.single_mut();
+fn apply_gravity(time: Res<Time>, mut query: Query<&mut Velocity>) {
+    let mut velocity = query.single_mut();
 
-    if *movement_state == MovementState::Jumping || *movement_state == MovementState::Falling {
-        velocity.0.y -= 1_500.0 * time.delta_seconds();
-    }
+    velocity.0.y -= GRAVITY * time.delta_seconds();
 }
 
-fn move_player(
+fn apply_velocity(
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut Velocity, &mut MovementState, &Sprite)>,
     windows: Res<Windows>,
+    mut query: Query<(&mut Transform, &Velocity)>,
 ) {
     let window = windows.get_primary().unwrap();
-    let (mut transform, mut velocity, mut movement_state, sprite) = query.single_mut();
+    let (mut transform, velocity) = query.single_mut();
 
     let bottom = window.height() / -2.0;
-    let player_height = sprite.custom_size.unwrap().y;
-    let ground_relative_to_player = bottom + (player_height / 2.0);
-    let translation_change = velocity.velocity * time.delta_seconds();
+    let ground = bottom + (PLAYER_SIZE.y / 2.0);
+    let translation_change = velocity.0 * time.delta_seconds();
 
-    if transform.translation.y + translation_change.y < ground_relative_to_player {
-        transform.translation.y = ground_relative_to_player;
-        velocity.0.y = 0.0;
-        *movement_state = MovementState::Idle;
+    if transform.translation.y + translation_change.y < ground {
+        transform.translation.y = ground;
     } else {
         transform.translation += translation_change.extend(0.0);
     }
 }
 
-// This is the actual demonstation of the tweening plugin
-fn tween_jump_and_fall(
+fn tween_player(
     options: Res<Options>,
     mut query: Query<
         (&mut Animator<Transform>, &MovementState, &Transform),
-        Changed<MovementState>,
+        (Changed<MovementState>, With<Player>),
     >,
 ) {
     if query.is_empty() {
