@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
-use bevy_inspector_egui::prelude::*;
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
@@ -105,13 +104,29 @@ fn main() {
         .run();
 }
 
-fn setup(mut commands: Commands, windows: Res<Windows>) {
+fn setup(mut commands: Commands, windows: Res<Windows>, asset_server: Res<AssetServer>) {
     let window = windows.get_primary().unwrap();
     let bottom = window.height() / -2.0;
 
     let player_size = Vec2::new(100.0, 100.0);
 
     commands.spawn(Camera2dBundle::default());
+
+    commands.spawn(Text2dBundle {
+        text: Text::from_section(
+            "Press 'space' to jump",
+            TextStyle {
+                font: asset_server.load("fonts/FiraSans-Regular.ttf"),
+                font_size: 40.0,
+                color: Color::WHITE,
+            },
+        )
+        .with_alignment(TextAlignment {
+            vertical: VerticalAlign::Center,
+            horizontal: HorizontalAlign::Center,
+        }),
+        ..Default::default()
+    });
 
     commands.spawn((
         SpriteBundle {
