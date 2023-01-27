@@ -16,9 +16,7 @@ enum MovementState {
 }
 
 #[derive(Component)]
-struct Physics {
-    velocity: Vec2,
-}
+struct Velocity(Vec2);
 
 // TODO adopt this for setting the tween parameters of the jump and fall
 #[derive(Inspectable, Resource)]
@@ -143,9 +141,7 @@ fn setup(mut commands: Commands, windows: Res<Windows>, asset_server: Res<AssetS
         },
         Animator::new(Dummy::<Transform>::new()),
         MovementState::Idle,
-        Physics {
-            velocity: Vec2::new(0.0, 0.0),
-        },
+        Velocity(Vec2::new(0.0, 0.0)),
         Player,
     ));
 }
@@ -155,48 +151,55 @@ fn setup(mut commands: Commands, windows: Res<Windows>, asset_server: Res<AssetS
 fn take_input(
     keys: Res<Input<KeyCode>>,
     time: Res<Time>,
-    mut query: Query<(&mut MovementState, &mut Physics)>,
+    mut query: Query<(&mut MovementState, &mut Velocity)>,
 ) {
-    let (mut movement_state, mut physics) = query.single_mut();
+    let (mut movement_state, mut velocity) = query.single_mut();
 
     match *movement_state {
         MovementState::Idle => {
             if keys.just_pressed(KeyCode::Space) {
                 *movement_state = MovementState::Jumping;
-                physics.velocity.y = 1_000.0;
+                velocity.0.y = 1_000.0;
             }
         }
-        _ => {}
+        MovementState::Jumping => {
+            if velocity.0.y < 0.0 {
+                *movement_state = MovementState::Falling;
+            }
+        }
+        MOvementState::Falling => {
+            if transform.translation.y + translation_change.y < ground_relative_to_player {
+                transform.translation.y = ground_relative_to_player;
+                velocity.0.y = 0.0;
+                *movement_state = MovementState::Idle;
+        }
     }
 }
 
-fn apply_gravity(time: Res<Time>, mut query: Query<(&mut Physics, &mut MovementState)>) {
-    let (mut physics, mut movement_state) = query.single_mut();
+fn apply_gravity(time: Res<Time>, mut query: Query<(&mut Velocity, &mut MovementState)>) {
+    let (mut velocity, mut movement_state) = query.single_mut();
 
     if *movement_state == MovementState::Jumping || *movement_state == MovementState::Falling {
-        physics.velocity.y -= 1_500.0 * time.delta_seconds();
-    }
-    if physics.velocity.y < 0.0 && *movement_state != MovementState::Falling {
-        *movement_state = MovementState::Falling;
+        velocity.0.y -= 1_500.0 * time.delta_seconds();
     }
 }
 
 fn move_player(
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut Physics, &mut MovementState, &Sprite)>,
+    mut query: Query<(&mut Transform, &mut Velocity, &mut MovementState, &Sprite)>,
     windows: Res<Windows>,
 ) {
     let window = windows.get_primary().unwrap();
-    let (mut transform, mut physics, mut movement_state, sprite) = query.single_mut();
+    let (mut transform, mut velocity, mut movement_state, sprite) = query.single_mut();
 
     let bottom = window.height() / -2.0;
     let player_height = sprite.custom_size.unwrap().y;
     let ground_relative_to_player = bottom + (player_height / 2.0);
-    let translation_change = physics.velocity * time.delta_seconds();
+    let translation_change = velocity.velocity * time.delta_seconds();
 
     if transform.translation.y + translation_change.y < ground_relative_to_player {
         transform.translation.y = ground_relative_to_player;
-        physics.velocity.y = 0.0;
+        velocity.0.y = 0.0;
         *movement_state = MovementState::Idle;
     } else {
         transform.translation += translation_change.extend(0.0);
