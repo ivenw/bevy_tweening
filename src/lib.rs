@@ -421,6 +421,14 @@ macro_rules! animator_impl {
         pub fn is_completed(&self) -> bool {
             self.tweenable().progress() == 1.0
         }
+
+        /// Is the animation currently playing?
+        ///
+        /// This is a convenient function for checking if the animator state is equal to [`AnimatorState::Playing`].
+        #[must_use]
+        pub fn is_playing(&self) -> bool {
+            self.state == AnimatorState::Playing
+        }
     };
 }
 
